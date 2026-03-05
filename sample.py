@@ -212,8 +212,6 @@ class Sample:
 
 
 if __name__ == '__main__': 
-    # You can uncomment this if you want to generate the 2D binary array 
-    # with ones for spheres and zeros for background and have a look at it
     samp2d = Sample(t_samp_in_mm = t_samp_in_mm,
                     d_sph_in_um = d_sph_in_um,
                     mat_sph = mat_sph, 
@@ -231,12 +229,6 @@ if __name__ == '__main__':
 
     print(slc2d_sph_padded.shape)
 
-
-    # slc2d_sph_padded, slc2d_bkg_padded = samp2d.create_slice2d()
-    # sample2d = slc2d_sph_padded[::100, ::100]
-    # print(sample2d.shape)
-    # plt.imshow(sample2d, cmap='gray')
-    # plt.show()
 
 
 

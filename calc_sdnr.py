@@ -357,7 +357,7 @@ if __name__ == '__main__':
 
     # analytical solution
     dtdx = samp2d.r_sph_in_pix / samp_size_in_pix # slope of wedge thickness [pix/pix]
-    dphi_const = (2*np.pi/(px_in_um * 1e6)) * prop_in_m * (samp2d.delta_sph - samp2d.delta_bkg) * dtdx
+    dphi_const = (2*np.pi/(px_in_um * 1e-6)) * prop_in_m * (samp2d.delta_sph - samp2d.delta_bkg) * dtdx
 
     phi_an = np.ones_like(phi, dtype=float) * dphi_const
 
