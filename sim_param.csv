@@ -1,0 +1,17 @@
+Energy in keV,60
+Simulated pixel size in m,1e-08
+Simulated image size in pix,30000
+Grating period in X in um,5
+Sample size in pix,30000
+Sample thickness in mm,0.5
+Sphere diameter in um,100
+Sphere material,C5H8O2
+Background material,N0.78O0.21Ar0.01
+Number of slices,500
+Thickness of a sample slice in pix,100
+Talbot distance in m,2.4
+Grating-to-detector distance in cm,181.5
+Grating-to-sample distance in cm,90.7
+Sample-to-detector distance in cm,90.7
+Propagation distance in cm,90.7
+Simulation time in min,0.0
