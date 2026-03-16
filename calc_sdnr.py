@@ -8,6 +8,9 @@ import xraylib as xrl
 
 from sample import *
 
+from scipy import optimize 
+from scipy.special import expit, log_expit
+
 """
 Takes the intensities calculated in wave propagation and 
 adds noise ant different photon levels and looks at the SDNR
@@ -50,12 +53,12 @@ def estimate_phi_lstsq(Iref, Isamp):
     """
     omega = 2 * np.pi / (px_in_um*1e-6 / detector_pixel_size)
     x_walk = np.arange(len(Iref))
+    # x_walk =  np.arange(10* segment_size_in_pix)
     
     centers = []
     phi_list = []
 
     for start in range(0, len(x_walk) - segment_size_in_pix + 1, segment_size_in_pix):
-        
         x_seg = x_walk[start:start+segment_size_in_pix]
         Iref_seg = Iref[start:start+segment_size_in_pix]
         Isamp_seg = Isamp[start:start+segment_size_in_pix]
@@ -69,6 +72,7 @@ def estimate_phi_lstsq(Iref, Isamp):
 
         beta_ref, _, _, _ = np.linalg.lstsq(X, Iref_seg, rcond=None)
         beta_samp, _, _, _ = np.linalg.lstsq(X, Isamp_seg, rcond=None)
+        
 
         A_ref = beta_ref[1]
         A_samp = beta_samp[1]
@@ -82,7 +86,14 @@ def estimate_phi_lstsq(Iref, Isamp):
         centers.append(np.mean(x_seg))
         phi_list.append(phi_samp - phi_ref)
 
+        a1 = np.sqrt(A_samp**2 + B_samp**2)
+
+        # print('LSQ', beta_samp[0], a1, phi_samp)
+
+
+
     return np.array(phi_list)
+
 
 def estimate_phi_fourier(Iref, Isamp):
     """
@@ -94,6 +105,7 @@ def estimate_phi_fourier(Iref, Isamp):
     """
     omega = 2 * np.pi / (px_in_um*1e-6 / detector_pixel_size)
     x_walk = np.arange(len(Iref))
+    # x_walk =  np.arange(10* segment_size_in_pix)
     
     centers = []
     phi_list = []
@@ -109,6 +121,8 @@ def estimate_phi_fourier(Iref, Isamp):
         N = len(Isamp_seg)
         k = int(N / (px_in_um*1e-6 / detector_pixel_size))
 
+
+
         mean_samp = fourier_Isamp[0].real / N
         amp_samp = 2 * np.abs(fourier_Isamp[k]) / N
         phase_samp = np.angle(fourier_Isamp[k])
@@ -121,7 +135,85 @@ def estimate_phi_fourier(Iref, Isamp):
         centers.append(np.mean(x_seg))
         phi_list.append(phase_samp - phase_ref)
 
+        # print('F', mean_samp, amp_samp, phase_samp)
+
     return np.array(phi_list), np.array(mean_list)
+
+
+def forward_model(params, x_seg, eps=1e-9):
+    alpha, C, S = params
+
+    omega = 2 * np.pi / (px_in_um * 1e-6 / detector_pixel_size)
+
+    R = np.sqrt(C**2 + S**2)
+    A = np.exp(alpha) + R + eps
+
+    I_pred = A + C * np.cos(omega * x_seg) + S * np.sin(omega * x_seg)
+    return I_pred 
+    # return np.clip(A + B * np.cos(omega * x_seg + Phi), 1e-12, None)
+
+
+def nll(params, I, x_seg, eps=1e-12):
+    I_pred = forward_model(params, x_seg, eps=eps)
+
+    I_pred = np.maximum(I_pred, eps)
+
+    return np.sum(I_pred - I * np.log(I_pred))
+
+def recover_params(params, eps=1e-9):
+    alpha, C, S = params
+    B = np.sqrt(C**2 + S**2)
+    Phi = np.arctan2(-S, C)
+    A = np.exp(alpha) + B + eps
+    return A, B, Phi
+
+def estimate_phi_mle(Iref, Isamp):
+
+    x_walk = np.arange(len(Iref))
+    # x_walk = np.arange(10* segment_size_in_pix)
+
+    centers = []
+    phi_list = []
+
+    for start in range(0, len(x_walk) - segment_size_in_pix + 1, segment_size_in_pix):
+        x_seg = x_walk[start:start+segment_size_in_pix]
+        Iref_seg = Iref[start:start+segment_size_in_pix]
+        Isamp_seg = Isamp[start:start+segment_size_in_pix]
+
+        # print("A guess",Isamp_seg.mean())
+        # print('MLE DAT',Isamp_seg)
+
+
+        result_samp = optimize.minimize(
+            nll, 
+            x0=[np.log(max(np.mean(Isamp_seg), 1e-6)),0,0],
+            args=(Isamp_seg, x_seg),
+            method='L-BFGS-B'
+            # bounds=((1e-8, None), (None, None), (None, None)),
+        )
+
+        # print(result_samp)
+
+
+        result_ref = optimize.minimize(
+            nll, 
+            x0=[np.log(max(np.mean(Iref_seg), 1e-6)),0,0],
+            args=(Iref_seg, x_seg),
+            method='L-BFGS-B'
+            # bounds=((1e-8, 1), (1, 1), (None, None))
+        )
+
+        A_samp, B_samp, phi_samp = recover_params(result_samp.x)
+        A_ref, B_ref, phi_ref =  recover_params(result_ref.x)
+
+        centers.append(np.mean(x_seg))
+        phi_list.append(phi_samp - phi_ref)
+
+
+    return np.array(phi_list)
+
+
+
 
 def compute_intensity_2D_pixels(I_ref, I_tumor, I_no_tumor, d_sph_um):
     """
@@ -341,7 +433,14 @@ if __name__ == '__main__':
     Isamp = data['100um'].to_numpy()
     # Isamp = data['I_samp'].to_numpy()
 
-    phi, mean = estimate_phi_fourier(Iref, Isamp)
+    phi_f, _ = estimate_phi_fourier(Iref, Isamp)
+    phi_l = estimate_phi_lstsq(Iref, Isamp)
+    phi_mle = estimate_phi_mle(Iref, Isamp)
+
+
+    print(phi_f, phi_mle)
+
+    # exit()
 
     samp2d = Sample(t_samp_in_mm = t_samp_in_mm,
                     d_sph_in_um = d_sph_in_um,
@@ -359,12 +458,16 @@ if __name__ == '__main__':
     dtdx = samp2d.r_sph_in_pix / samp_size_in_pix # slope of wedge thickness [pix/pix]
     dphi_const = (2*np.pi/(px_in_um * 1e-6)) * prop_in_m * (samp2d.delta_sph - samp2d.delta_bkg) * dtdx
 
-    phi_an = np.ones_like(phi, dtype=float) * dphi_const
+    phi_an = np.ones_like(phi_f, dtype=float) * dphi_const
 
     # plt.plot(Iref)
     # plt.plot(Isamp)
-    plt.plot(phi)
-    plt.plot(phi_an)
+    plt.plot(phi_mle, linestyle='-',label='MLE')
+    plt.plot(phi_l, linestyle='-', label='LSQ')
+    plt.plot(phi_an,linestyle='-', label='analytical')
+
+    plt.plot(phi_f,linestyle='dashdot', label='Fourier')
+    plt.legend()
     plt.show()
 
 

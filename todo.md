@@ -1,5 +1,4 @@
-
-TODO:
+Project TODO:
  - Get familiar with the code  [X]
  - Add triangular wedge [X]
     - Compute phase shift [X]
@@ -9,3 +8,8 @@ TODO:
  - Add Penalized MLE estimation []
  - Evaluate the methods in different contexts
    - low
+
+
+Code TODO: 
+  - vectorize estimation functions using numpy []
+  - better system for parameters []
